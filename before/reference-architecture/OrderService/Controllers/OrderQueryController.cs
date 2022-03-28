@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using OrderService.Domain.OrderAggregate;
 using OrderService.DTO.Read;
+using OrderService.Repositories;
 using OrderState = OrderService.DTO.Read.OrderState;
 
 namespace OrderService.Controllers;
@@ -9,10 +10,44 @@ namespace OrderService.Controllers;
 [ApiController]
 public class OrderQueryController : ControllerBase
 {
-    // TODO: Add ctor
-    
-    // TODO: Complete actions
+    private readonly IOrderRepository _repository;
 
+    public OrderQueryController(
+        IOrderRepository repository)
+    {
+        _repository = repository;
+    }
+
+    // GET api/order
+    [HttpGet]
+    public async Task<IActionResult> GetOrders()
+    {
+        var orders = await _repository.GetAsync();
+        var result = MapOrderViews(orders);
+        return Ok(result);
+    }
+    
+    // GET api/order/customer/id
+    [HttpGet]
+    [Route("customer/{id:guid}")]
+    public async Task<IActionResult> GetOrders([FromRoute] Guid id)
+    {
+        var orders = await _repository.GetByCustomerAsync(id);
+        var result = MapOrderViews(orders);
+        return Ok(result);
+    }
+
+    // GET api/order/id
+    [HttpGet]
+    [Route("{id:guid}")]
+    public async Task<IActionResult> GetOrder([FromRoute] Guid id)
+    {
+        var order = await _repository.GetAsync(id);
+        if (order == null) return NotFound();
+        var result = MapOrderViews(Enumerable.Repeat(order, 1)).Single();
+        return Ok(result);
+    }
+    
     private IEnumerable<OrderView> MapOrderViews(IEnumerable<Order?> orders) =>
         orders.Select(o => new OrderView
         {

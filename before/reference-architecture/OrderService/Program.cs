@@ -1,3 +1,8 @@
+using EventDriven.DependencyInjection.URF.Mongo;
+using OrderService.Configuration;
+using OrderService.Domain.OrderAggregate;
+using OrderService.Repositories;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -8,7 +13,9 @@ builder.Services.AddSwaggerGen();
 // Add automapper
 builder.Services.AddAutoMapper(typeof(Program));
 
-// TODO: Add database settings
+// Add database settings
+builder.Services.AddSingleton<IOrderRepository, OrderRepository>();
+builder.Services.AddMongoDbSettings<OrderDatabaseSettings, Order>(builder.Configuration);
 
 var app = builder.Build();
 

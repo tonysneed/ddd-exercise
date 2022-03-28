@@ -26,18 +26,24 @@ DDD Exercise
    - Open **ddd-before.sln** in Rider (or an IDE of your choice).
    - Build the solution.
      - Ignore build warnings for now.
-2. Run user acceptance tests with **Tye** and **SpecFlow**.
+2. Using the **Test Explorer** in Rider, run user acceptance tests with **Tye** and **SpecFlow**.
    >**Note**: While it is possible to run each service directly from the IDE, Tye sets **environment variables** which point to test databases that are populated by the `Hooks` class. You can then set breakpoints and debug source code by attaching to service processes. 
    - Open a terminal at the **test/EventDriven.ReferenceArchitecture.Specs** directory.
-   - Run: `tye run`
+    ```bash
+    cd test/EventDriven.ReferenceArchitecture.Specs
+    tye run
+    ```
    - Open http://localhost:8000/
      - Make sure both CustomerService and OrderService are running.
+![tye-dashboard](images/tye-dashboard.png)
    - Open the test explorer and run the **EventDriven.ReferenceArchitecture.Specs** acceptance test.
      - *All the tests should fail.*
 3. Run the **CustomerService.Tests** unit tests.
    - *All the test should fail.*
 4. Run the **orderService.Tests** unit tests.
    - *All the test should fail.*
+![unit-tests-fail-1](images/unit-tests-fail-1.png)
+    - Stop Tye with Ctrl+C.
 5. Add `ICustomerRepository.cs` to **CustomerService/Repositories**.
     ```csharp
     using CustomerService.Domain.CustomerAggregate;
@@ -55,100 +61,260 @@ DDD Exercise
     ```
 6. Add a ctor to `CustomerCommandController`.
    - Add parameters for `ICustomerRepository` and `IMapper`.
-7. Flesh out unit tests in **CustomerCommandControllerTests**.
-   - Add fields for `Mock<ICustomerRepository>` and `IMapper`.
-     - Initialize them in a ctor.
+7. Update `CustomerCommandControllerTests` in **CustomerService.Tests**.
+   - Add fields for `Mock<ICustomerRepository>` and `IMapper` and initialize them in a ctor.
     ```csharp
+    private readonly Mock<ICustomerRepository> _repositoryMoq;
+    private readonly IMapper _mapper;
+
     public CustomerCommandControllerTests()
     {
         _repositoryMoq = new Mock<ICustomerRepository>();
         _mapper = MappingHelper.GetMapper();
     }
     ```
-   - In each test create a new `CustomerCommandController`, passing in `_repositoryMoq` and `_mapper`.
-   - Use `_mapper` to map a `Customer` DTO from a `Customer` entity.
+8. Flesh out the first unit test.
     ```csharp
-    var customerOut = _mapper.Map<Customer>(Customers.Customer1);
-    ```
-   - Call `_repositoryMoq.Setup` to set up the method that is called by the controller.
-    ```csharp
-    _repositoryMoq.Setup(x => x.AddAsync(It.IsAny<Customer>()))
-        .ReturnsAsync(customerOut);
-    ```
-   - Call the controller method being tested and cast the result.
-    ```csharp
-    var actionResult = await controller.Create(Customers.Customer1);
-    var createdResult = actionResult as CreatedResult;
-    ```
-   - Assert the correct result was returned.
-    ```csharp
-    Assert.NotNull(actionResult);
-    Assert.NotNull(createdResult);
-    Assert.Equal($"api/customer/{customerOut.Id}", createdResult!.Location, true);
-    ```
-   - Repeat the process for the remaining unit tests for **CustomerService**.
-   - Run the **CustomerService** tests.
-     - All test should still fail.
-8. Flesh out unit tests in **CustomerQueryControllerTests**.
-   - Repeat the prior step.
-   - Run the CustomerService tests.
-     - *All test should still fail.*
-9. Run the unit tests for **CustomerService.Tests**.
-   - The *tests should fail* with `NotImplementedException`.
-10. Repeat *steps 5-9* for **OrderService** and **OrderService.Tests**.
-    - Add `IOrderRepository.cs` to **OrderService/Repositories**.
-    ```csharp
-    using OrderService.Domain.OrderAggregate;
-
-    namespace OrderService.Repositories;
-
-    public interface IOrderRepository
+    [Fact]
+    public void WhenInstantiated_ThenShouldBeOfCorrectType()
     {
-        Task<IEnumerable<Order>> GetAsync();
-        Task<IEnumerable<Order>> GetByCustomerAsync(Guid customerId);
-        Task<Order?> GetAsync(Guid id);
-        Task<Order?> AddAsync(Order entity);
-        Task<Order?> UpdateAsync(Order entity);
-        Task<Order?> UpdateAddressAsync(Guid orderId, Address address);
-        Task<int> RemoveAsync(Guid id);
-        Task<Order?> UpdateOrderStateAsync(Order entity, OrderState orderState);
+        var controller = new CustomerCommandController(_repositoryMoq.Object, _mapper);
+
+        Assert.IsAssignableFrom<ControllerBase>(controller);
+        Assert.IsType<CustomerCommandController>(controller);
     }
     ```
-    - Add a ctor to `OrderCommandController`.
-    - Flesh out unit tests in **OrderCommandControllerTests**.
-    - Flesh out unit tests in **OrderQueryControllerTests**.
-    - Run the unit tests for **OrderService.Tests**.
-      - The *tests should fail* with `NotImplementedException`.
-11. Flesh out `CustomerCommandController` in **CustomerService**.
+9. Flesh out the next unit test.
+   - Create a new `CustomerCommandController`, passing in `_repositoryMoq` and `_mapper`.
+   - Use `_mapper` to map a `Customer` DTO from a `Customer` entity.
+   - Call `_repositoryMoq.Setup` to set up the method that is called by the controller.
+   - Call the controller method being tested and cast the result.
+   - Assert the correct result was returned.
+    ```csharp
+    [Fact]
+    public async Task GivenWeAreCreatingACustomer_WhenSuccessful_ThenShouldProvideNewEntityWithPath()
+    {
+        var customerOut = _mapper.Map<Customer>(Customers.Customer1);
+
+        _repositoryMoq.Setup(x => x.AddAsync(It.IsAny<Customer>()))
+            .ReturnsAsync(customerOut);
+
+        var controller = new CustomerCommandController(_repositoryMoq.Object, _mapper);
+
+        var actionResult = await controller.Create(Customers.Customer1);
+        var createdResult = actionResult as CreatedResult;
+
+        Assert.NotNull(actionResult);
+        Assert.NotNull(createdResult);
+        Assert.Equal($"api/customer/{customerOut.Id}", createdResult!.Location, true);
+    }
+    ```
+10. Flesh out the remaining unit tests.
+    ```csharp
+    [Fact]
+    public async Task GivenWeAreUpdatingACustomer_WhenSuccessful_ThenUpdatedEntityShouldBeReturned()
+    {
+        var customerIn = Customers.Customer2;
+        var customerOut = _mapper.Map<Customer>(Customers.Customer2);
+
+        var controller = new CustomerCommandController(_repositoryMoq.Object, _mapper);
+
+        _repositoryMoq.Setup(x => x.UpdateAsync(It.IsAny<Customer>()))
+            .ReturnsAsync(customerOut);
+
+        var actionResult = await controller.Update(customerIn);
+        var objectResult = actionResult as OkObjectResult;
+
+        Assert.NotNull(actionResult);
+        Assert.NotNull(objectResult);
+        Assert.Equal(customerIn.Id, ((DTO.Write.Customer)objectResult!.Value!).Id);
+    }
+    ```
+    ```csharp
+    [Fact]
+    public async Task GivenWeAreRemovingACustomer_WhenSuccessful_ThenShouldReturnSuccess()
+    {
+        var customerId = Guid.NewGuid();
+        var controller = new CustomerCommandController(_repositoryMoq.Object, _mapper);
+
+        _repositoryMoq.Setup(x => x.RemoveAsync(It.IsAny<Guid>()))
+            .ReturnsAsync(1);
+
+        var actionResult = await controller.Remove(customerId);
+        var noContentResult = actionResult as NoContentResult;
+
+        Assert.NotNull(actionResult);
+        Assert.NotNull(noContentResult);
+    }
+    ```
+11. Flesh out unit tests in **CustomerQueryControllerTests**.
+    ```csharp
+    public class CustomerQueryControllerTests
+    {
+        private readonly Mock<ICustomerRepository> _repositoryMoq;
+        private readonly IMapper _mapper;
+
+        public CustomerQueryControllerTests()
+        {
+            _repositoryMoq = new Mock<ICustomerRepository>();
+            _mapper = MappingHelper.GetMapper();
+        }
+
+        [Fact]
+        public void WhenInstantiated_ThenShouldBeOfCorrectType()
+        {
+            var controller = new CustomerQueryController(_repositoryMoq.Object, _mapper);
+
+            Assert.IsAssignableFrom<ControllerBase>(controller);
+            Assert.IsType<CustomerQueryController>(controller);
+        }
+
+        [Fact]
+        public async Task WhenRetrievingAllCustomers_ThenAllCustomersShouldBeReturned()
+        {
+            _repositoryMoq.Setup(x => x.GetAsync())
+                .ReturnsAsync(new List<Customer>
+                {
+                    _mapper.Map<Customer>(Customers.Customer1),
+                    _mapper.Map<Customer>(Customers.Customer2),
+                    _mapper.Map<Customer>(Customers.Customer3)
+                });
+
+            var controller = new CustomerQueryController(_repositoryMoq.Object, _mapper);
+
+            var actionResult = await controller.GetCustomers();
+            var okResult = Assert.IsType<OkObjectResult>(actionResult);
+            var value = (IEnumerable<CustomerView>)okResult.Value!;
+
+            Assert.Collection(value,
+                c => Assert.Equal(CustomerViews.Customer1.Id, c.Id),
+                c => Assert.Equal(CustomerViews.Customer2.Id, c.Id),
+                c => Assert.Equal(CustomerViews.Customer3.Id, c.Id));
+        }
+
+        [Fact]
+        public async Task GivenWeAreRetrievingACustomerById_WhenSuccessful_ThenCorrectCustomerShouldBeReturned()
+        {
+            _repositoryMoq.Setup(x => x.GetAsync(It.IsAny<Guid>()))
+                .ReturnsAsync(_mapper.Map<Customer>(Customers.Customer1));
+
+            var controller = new CustomerQueryController(_repositoryMoq.Object, _mapper);
+
+            var actionResult = await controller.GetCustomer(Customers.Customer1.Id);
+            var okResult = Assert.IsType<OkObjectResult>(actionResult);
+            var value = (CustomerView)okResult.Value!;
+
+            Assert.Equal(CustomerViews.Customer1.Id, value.Id);
+        }
+    }
+    ```
+12. Run the unit tests for **CustomerService.Tests**.
+    - The *tests should fail* with `NotImplementedException`.
+13. Flesh out `CustomerCommandController` in **CustomerService**.
     - Add a ctor that accepts `ICustomerRepository` and `IMapper`.
-    - Map incoming DTO's to entities.
     ```csharp
-    var customerIn = _mapper.Map<Customer>(customerDto);
+    private readonly ICustomerRepository _repository;
+    private readonly IMapper _mapper;
+
+    public CustomerCommandController(
+        ICustomerRepository repository,
+        IMapper mapper)
+    {
+        _repository = repository;
+        _mapper = mapper;
+    }
     ```
-    - Use the repository.
+    - For the `Create` action perform the following.
+      - Map incoming DTO's to entities.
+      - Use the repository.
+      - Map the outgoing entities to DTO's.
+      - Return an action result.
     ```csharp
-    var result = await _repository.AddAsync(customerIn);
+    // POST api/customer
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] DTO.Write.Customer customerDto)
+    {
+        var customerIn = _mapper.Map<Customer>(customerDto);
+        var result = await _repository.AddAsync(customerIn);
+
+        var customerOut = _mapper.Map<DTO.Write.Customer>(result);
+        return Created($"api/customer/{customerOut.Id}", customerOut);
+    }
     ```
-    - Map the outgoing entities to DTO's.
+    - Flesh out the `Update` action.
     ```csharp
-    var customerOut = _mapper.Map<DTO.Write.Customer>(result);
+    // PUT api/customer
+    [HttpPut]
+    public async Task<IActionResult> Update([FromBody] DTO.Write.Customer customerDto)
+    {
+        var customerIn = _mapper.Map<Customer>(customerDto);
+        var result = await _repository.UpdateAsync(customerIn);
+
+        var customerOut = _mapper.Map<DTO.Write.Customer>(result);
+        return Ok(customerOut);
+    }
     ```
-    - Return an action result.
+    - Flesh out the `Remove` action.
     ```csharp
-    return Created($"api/customer/{customerOut.Id}", customerOut);
+    // DELETE api/customer/id
+    [HttpDelete]
+    [Route("{id}")]
+    public async Task<IActionResult> Remove([FromRoute] Guid id)
+    {
+        await _repository.RemoveAsync(id);
+        return NoContent();
+    }
     ```
-    - Repeat for the remaining controller actions.
-12. Flesh out `CustomerQueryController` in **CustomerService**.
-    - Repeat the prior step for `CustomerQueryController`.
-13. Run the unit tests for **CustomerService.Tests**.
+14. Flesh out `CustomerQueryController` in **CustomerService**.
+    ```csharp
+    public class CustomerQueryController : ControllerBase
+    {
+        private readonly ICustomerRepository _repository;
+        private readonly IMapper _mapper;
+
+        public CustomerQueryController(
+            ICustomerRepository repository,
+            IMapper mapper)
+        {
+            _repository = repository;
+            _mapper = mapper;
+        }
+
+        // GET api/customer
+        [HttpGet]
+        public async Task<IActionResult> GetCustomers()
+        {
+            var customers = await _repository.GetAsync();
+            var result = _mapper.Map<IEnumerable<CustomerView>>(customers);
+            return Ok(result);
+        }
+
+        // GET api/customer/id
+        [HttpGet]
+        [Route("{id:guid}")]
+        public async Task<IActionResult> GetCustomer([FromRoute] Guid id)
+        {
+            var customer = await _repository.GetAsync(id);
+            if (customer == null) return NotFound();
+            var result = _mapper.Map<CustomerView>(customer);
+            return Ok(result);
+        }
+    }
+    ```
+15. Run the unit tests for **CustomerService.Tests**.
     - The tests should now pass.
-14. Repeat *steps 11-12* for **OrderService**.
-15. Run the unit tests for **OrderService.Tests**.
-    - The tests should now pass.
-16. Add `CustomerRepository` and `OrderRepository` classes to **CustomerService** and **OrderService** respectively.
+16. Add a `CustomerRepository` class to **CustomerService**.
     - Add a `[ExcludeFromCodeCoverage]` attribute to the class.
     > **Note**: Repositories are best covered by **integration tests**, *not unit tests*, because the underlying provider cannot be adequately mocked.
     - Extend `DocumentRepository<Customer>` and implement `ICustomerRepository`.
+    ```csharp
+    [ExcludeFromCodeCoverage]
+    public class CustomerRepository : DocumentRepository<Customer>, ICustomerRepository
+    {
+        public CustomerRepository(IMongoCollection<Customer> collection) : base(collection)
+        {
+        }
+    ```
     - Call the base class methods.
     ```csharp
     public async Task<IEnumerable<Customer>> GetAsync() =>
@@ -161,18 +327,31 @@ DDD Exercise
         await DeleteOneAsync(e => e.Id == id);
     ```
     - For `AddAsync` and `UpdateAsync` set the entity `ETag`.
-    ```csharp
-    entity.ETag = Guid.NewGuid().ToString();
-    ```
     - For `UpdateAsync` throw a `ConcurrencyException` if the incoming `ETag` does not match the existing one.
     ```csharp
-    if (string.Compare(entity.ETag, existing.ETag, StringComparison.OrdinalIgnoreCase) != 0 )
-        throw new ConcurrencyException();
+    public async Task<Customer?> AddAsync(Customer entity)
+    {
+        var existing = await FindOneAsync(e => e.Id == entity.Id);
+        if (existing != null) return null;
+        if (string.IsNullOrWhiteSpace(entity.ETag))
+            entity.ETag = Guid.NewGuid().ToString();
+        return await InsertOneAsync(entity);
+    }
+
+    public async Task<Customer?> UpdateAsync(Customer entity)
+    {
+        var existing = await GetAsync(entity.Id);
+        if (existing == null) return null;
+        if (string.Compare(entity.ETag, existing.ETag, StringComparison.OrdinalIgnoreCase) != 0 )
+            throw new ConcurrencyException();
+        entity.ETag = Guid.NewGuid().ToString();
+        return await FindOneAndReplaceAsync(e => e.Id == entity.Id, entity);
+    }
     ```
 17. Update code in **EventDriven.ReferenceArchitecture.Specs** so that the acceptance tests pass.
     - Look up each `TODO` item and uncomment code.
       - These should be in the `Hooks` and `StepDefinitions` classes.
-    - Open a terminal at the Specs directory to run: `tye run`.
+    - Execute `tye run` from the terminal.
     - Run the acceptance tests. *The acceptance tests should now pass.*
     - Stop Tye with Ctrl+C.
 18. Run **CustomerService** directly from the IDE.
@@ -181,12 +360,10 @@ DDD Exercise
     - Resolve the error by updating `Program` to add database settings.
       - Be sure to resolve the namespace for `Customer` to `DomainAggregate.Customer` entity, not the `Customer` DTO. 
     ```csharp
+    // Add database settings
     builder.Services.AddSingleton<ICustomerRepository, CustomerRepository>();
     builder.Services.AddMongoDbSettings<CustomerDatabaseSettings, Customer>(builder.Configuration);
     ```
     - The `AddMongoDbSettings` method maps a class that implements `IMongoDbSettings` to a section in appsettings.json with a name that matches the class name.
       - For example, the `CustomerDatabaseSettings` class has properties which match the `CustomerDatabaseSettings` section in appsettings.json.
     - Rerun **CustomerService**. *The error should go away.*
-19. Repeat Step 19 for **OrderService**.
-    - Update `Program` to add database settings.
-    - You can then execute actions for OrderService via Swagger without getting an error.
