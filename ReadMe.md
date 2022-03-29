@@ -40,8 +40,8 @@ DDD Exercise
      - *All the tests should fail.*
 3. Run the **CustomerService.Tests** unit tests.
    - *All the test should fail.*
-4. Run the **orderService.Tests** unit tests.
-   - *All the test should fail.*
+4. Run the **OrderService.Tests** unit tests.
+   - *All the test should pass.*
 ![unit-tests-fail-1](images/unit-tests-fail-1.png)
     - Stop Tye with Ctrl+C.
 5. Add `ICustomerRepository.cs` to **CustomerService/Repositories**.
@@ -147,7 +147,9 @@ DDD Exercise
         Assert.NotNull(noContentResult);
     }
     ```
-11. Flesh out unit tests in **CustomerQueryControllerTests**.
+11. Add a ctor to `CustomerQueryController`.
+    - Add parameters for `ICustomerRepository` and `IMapper`.
+12. Flesh out unit tests in **CustomerQueryControllerTests**.
     ```csharp
     public class CustomerQueryControllerTests
     {
@@ -208,9 +210,9 @@ DDD Exercise
         }
     }
     ```
-12. Run the unit tests for **CustomerService.Tests**.
+13. Run the unit tests for **CustomerService.Tests**.
     - The *tests should fail* with `NotImplementedException`.
-13. Flesh out `CustomerCommandController` in **CustomerService**.
+14. Flesh out `CustomerCommandController` in **CustomerService**.
     - Add a ctor that accepts `ICustomerRepository` and `IMapper`.
     ```csharp
     private readonly ICustomerRepository _repository;
@@ -265,7 +267,7 @@ DDD Exercise
         return NoContent();
     }
     ```
-14. Flesh out `CustomerQueryController` in **CustomerService**.
+15. Flesh out `CustomerQueryController` in **CustomerService**.
     ```csharp
     public class CustomerQueryController : ControllerBase
     {
@@ -301,9 +303,9 @@ DDD Exercise
         }
     }
     ```
-15. Run the unit tests for **CustomerService.Tests**.
+16. Run the unit tests for **CustomerService.Tests**.
     - The tests should now pass.
-16. Add a `CustomerRepository` class to **CustomerService**.
+17. Add a `CustomerRepository` class to **CustomerService**.
     - Add a `[ExcludeFromCodeCoverage]` attribute to the class.
     > **Note**: Repositories are best covered by **integration tests**, *not unit tests*, because the underlying provider cannot be adequately mocked.
     - Extend `DocumentRepository<Customer>` and implement `ICustomerRepository`.
@@ -348,13 +350,14 @@ DDD Exercise
         return await FindOneAndReplaceAsync(e => e.Id == entity.Id, entity);
     }
     ```
-17. Update code in **EventDriven.ReferenceArchitecture.Specs** so that the acceptance tests pass.
+18. Update code in **EventDriven.ReferenceArchitecture.Specs** so that the acceptance tests pass.
     - Look up each `TODO` item and uncomment code.
       - These should be in the `Hooks` and `StepDefinitions` classes.
+![show-todo](images/show-todo.png)
     - Execute `tye run` from the terminal.
-    - Run the acceptance tests. *The acceptance tests should now pass.*
+    - Run the acceptance tests. *The CustomerServiceFeature acceptance tests will fail.*
     - Stop Tye with Ctrl+C.
-18. Run **CustomerService** directly from the IDE.
+19. Run **CustomerService** directly from the IDE.
     - Use Swagger to execute the GET action.
     - You should get a *dependency injection error*.
     - Resolve the error by updating `Program` to add database settings.
@@ -367,3 +370,6 @@ DDD Exercise
     - The `AddMongoDbSettings` method maps a class that implements `IMongoDbSettings` to a section in appsettings.json with a name that matches the class name.
       - For example, the `CustomerDatabaseSettings` class has properties which match the `CustomerDatabaseSettings` section in appsettings.json.
     - Rerun **CustomerService**. *The error should go away.*
+    - Execute `tye run` from the terminal.
+    - Run the acceptance tests. *The CustomerServiceFeature acceptance tests will pass.*
+    - Stop Tye with Ctrl+C.
